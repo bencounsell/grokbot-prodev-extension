@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dev Toolbox</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <button type="button" id="btn-home" class="icon-btn" title="All tools" aria-label="All tools" hidden>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div class="brand-text">
+            <span class="brand-title" id="header-title">Dev Toolbox</span>
+            <span class="brand-sub" id="header-sub">12 tools · free set</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-right">
+        <button type="button" id="btn-palette" class="kbd-chip" title="Command palette (Ctrl/⌘K)">
+          <span>Search</span>
+          <kbd>⌘K</kbd>
+        </button>
+      </div>
+    </header>
+
+    <!-- Home: tool grid -->
+    <main id="view-home" class="view view-home" data-view="home">
+      <p class="section-label">Tools</p>
+      <nav class="tool-list" id="tool-list" role="list"></nav>
+      <footer class="footer-hint">
+        Press <kbd>⌘</kbd><kbd>K</kbd> or click Search · Shortcut <kbd>⌘⇧D</kbd> opens panel
+      </footer>
+    </main>
+
+    <!-- Tool detail -->
+    <main id="view-tool" class="view view-tool" data-view="tool" hidden>
+      <div id="tool-mount" class="tool-mount"></div>
+    </main>
+  </div>
+
+  <!-- Command palette overlay -->
+  <div id="palette" class="palette" hidden role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="palette-backdrop" id="palette-backdrop"></div>
+    <div class="palette-panel">
+      <div class="palette-input-row">
+        <svg class="palette-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+          <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="text"
+          id="palette-input"
+          class="palette-input"
+          placeholder="Jump to a tool…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <kbd class="palette-esc">esc</kbd>
+      </div>
+      <ul id="palette-results" class="palette-results" role="listbox"></ul>
+      <div class="palette-footer">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> open</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
