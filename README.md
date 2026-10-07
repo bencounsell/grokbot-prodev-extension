@@ -1,23 +1,23 @@
-# Dev Toolbox (v0.3.1)
+# Dev Toolbox (v0.4)
 
 Chrome Manifest V3 side-panel extension — SuperDev-style developer toolbox for Ben Counsell.
 
-**12 free-set tools**, command palette (`⌘/Ctrl+K`), keyboard open (`⌘/Ctrl+Shift+D`).
+**12 free-set tools** + **8 Pro wave 1 tools**, command palette (`⌘/Ctrl+K`), keyboard open (`⌘/Ctrl+Shift+D`).
 
-Repo (seed separately): https://github.com/bencounsell/grokbot-prodev-extension
+Repo: https://github.com/bencounsell/grokbot-prodev-extension
 
 ## Load unpacked (Chrome on Mac)
 
-**Folder:**
+Prefer an isolated checkout (e.g. worktree) so Prototyping can keep using `~/dev-toolbox-prototype`:
 
 ```
-/Users/ben/dev-toolbox-prototype
+/Users/ben/Developer/worktrees/grokbot-prodev-extension-pro-wave1
 ```
 
 1. Chrome → `chrome://extensions`
 2. Developer mode on
 3. **Remove** existing Dev Toolbox (required after permission / new-file changes), then **Load unpacked**
-4. Select `/Users/ben/dev-toolbox-prototype`
+4. Select the folder above (or your checkout)
 5. Open a normal **https** page (not `chrome://`)
 6. Open panel via toolbar icon or **⌘⇧D**
 
@@ -42,11 +42,20 @@ Prefer **Remove + Load unpacked**, then **refresh the tab** you want to measure/
 | **Screenshot** | Visible · selection crop · full-page stitch (capped) |
 | **Site stack** | Framework/library/CMS signals from DOM & globals |
 
-## Shortcuts
+## Tools (Pro wave 1)
 
-Suggested keys: **Ctrl+Shift+D** (open panel) and **Ctrl+Shift+K** (palette). On Mac: **⌘⇧D** / **⌘⇧K**.
+Gated in the UI with a **Pro** badge / section. Licensing is a **stub** (unlocked by default; toggle on the home list).
 
-If a shortcut does nothing after Load unpacked, open `chrome://extensions/shortcuts` and assign **Open Dev Toolbox side panel** / **Open Dev Toolbox command palette**.
+| Tool | What it does |
+|------|----------------|
+| **Layout overlays** | Box-model / flex / grid overlays; click to lock a target |
+| **Font changer** | Pick element · live font-family / size / weight / line-height / color |
+| **Move / delete** | Drag to reposition, or hide nodes (`display:none`) with undo |
+| **Image replace** | Swap `<img>` `src` or CSS `background-image` (URL or local file) |
+| **Dark mode** | Per-host invert theme; preference in `chrome.storage.local` |
+| **PDF export** | System print → Save as PDF; optional full HTML snapshot download |
+| **Export element** | Pick node → HTML + relevant computed CSS snippet / download |
+| **Responsive viewer** | Current viewport readout + open URL in preset device-sized popups |
 
 ## Permissions
 
@@ -55,11 +64,16 @@ If a shortcut does nothing after Load unpacked, open `chrome://extensions/shortc
 | `sidePanel` | Side panel UI |
 | `activeTab` | Tab context on gesture |
 | `tabs` | Title/URL; `captureVisibleTab` |
-| `storage` | Last tool, color history, palette handshake |
+| `storage` | Last tool, color history, dark-mode hosts, license stub |
 | `scripting` | Inject `content.js` for page tools |
+| `windows` | Responsive viewer preset popups |
 | `host_permissions: <all_urls>` | Reliable inject on arbitrary https pages after the panel is already open |
 
 ## Shortcuts
+
+Suggested keys: **Ctrl+Shift+D** (open panel) and **Ctrl+Shift+K** (palette). On Mac: **⌘⇧D** / **⌘⇧K**.
+
+If a shortcut does nothing after Load unpacked, open `chrome://extensions/shortcuts` and assign **Open Dev Toolbox side panel** / **Open Dev Toolbox command palette**.
 
 | Action | Default |
 |--------|---------|
@@ -67,12 +81,11 @@ If a shortcut does nothing after Load unpacked, open `chrome://extensions/shortc
 | Open command palette | ⌘⇧K / Ctrl+Shift+K |
 | Palette (panel focused) | ⌘/Ctrl+K |
 | Close / back | Esc |
-| Stop measure / inspect / live text / outliner | Esc on page |
+| Stop measure / inspect / live text / outliner / Pro pickers | Esc on page |
 
 ## Files
 
 ```
-dev-toolbox-prototype/
 ├── manifest.json
 ├── background.js
 ├── content.js
@@ -93,6 +106,9 @@ No build step.
 - A11y contrast is a heuristic sample, not a full WCAG engine
 - Palette/fonts/images capped for performance on huge DOMs
 - Site stack is heuristic, not Wappalyzer-complete
+- PDF export uses the browser print dialog (user chooses Save as PDF)
+- Responsive popups include browser chrome — inner viewport is slightly smaller than the preset
+- Pro licensing is a stub until FastSpring / activation lands
 - After upgrading the extension, refresh the page before page tools
 
 ## License
