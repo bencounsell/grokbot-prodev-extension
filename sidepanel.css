@@ -1258,3 +1258,114 @@ a.btn {
   font-size: 12.5px;
   font-weight: 520;
 }
+
+
+/* ——— Pro wave 1 ——— */
+.badge-pro {
+  background: linear-gradient(135deg, rgba(232, 184, 74, 0.22), rgba(110, 104, 227, 0.22));
+  color: #f0d78c;
+  border-color: rgba(232, 184, 74, 0.4);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.tool-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.tool-tier-badge {
+  margin-left: 6px;
+}
+
+.tool-row-pro .tool-icon {
+  border-color: rgba(232, 184, 74, 0.35);
+}
+
+.pro-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 10px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(232, 184, 74, 0.08), rgba(110, 104, 227, 0.10));
+  border: 1px solid rgba(232, 184, 74, 0.22);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.pro-section-note {
+  margin: 0 2px 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.linkish {
+  color: #b4b0f5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.preset-btn:hover {
+  background: var(--surface-hover);
+  border-color: rgba(110, 104, 227, 0.4);
+}
+
+.preset-name {
+  font-weight: 560;
+  font-size: 12.5px;
+}
+
+.preset-size {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  margin: 2px 4px 2px 0;
+}
+
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%239aa3b2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}

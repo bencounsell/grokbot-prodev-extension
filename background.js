@@ -76,10 +76,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     msg.type === "DT_INSPECT_STOPPED" ||
     msg.type === "DT_LIVE_TEXT_EDITING" ||
     msg.type === "DT_LIVE_TEXT_STOPPED" ||
-    msg.type === "DT_OUTLINE_STOPPED"
+    msg.type === "DT_OUTLINE_STOPPED" ||
+    msg.type === "DT_LAYOUT_INFO" ||
+    msg.type === "DT_LAYOUT_STOPPED" ||
+    msg.type === "DT_FONT_TARGET" ||
+    msg.type === "DT_FONT_STOPPED" ||
+    msg.type === "DT_MOVE_DONE" ||
+    msg.type === "DT_MOVE_STOPPED" ||
+    msg.type === "DT_DELETE_DONE" ||
+    msg.type === "DT_DELETE_STOPPED" ||
+    msg.type === "DT_IMAGE_TARGET" ||
+    msg.type === "DT_IMAGE_STOPPED" ||
+    msg.type === "DT_EXPORT_RESULT" ||
+    msg.type === "DT_EXPORT_STOPPED"
   ) {
     // Side panel also listens via chrome.runtime.onMessage; no extra work needed.
     return;
+  }
+
+
+  if (msg.type === "DT_OPEN_VIEWPORT") {
+    (async () => {
+      try {
+        const width = Math.max(200, Math.min(4000, Number(msg.width) || 390));
+        const height = Math.max(200, Math.min(3000, Number(msg.height) || 844));
+        const url = msg.url;
+        if (!url) {
+          sendResponse({ ok: false, error: "No URL" });
+          return;
+        }
+        const win = await chrome.windows.create({
+          url,
+          type: "popup",
+          width,
+          height,
+          focused: true,
+        });
+        sendResponse({ ok: true, windowId: win?.id, width, height });
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      }
+    })();
+    return true;
   }
 
   if (msg.type === "DT_ENSURE_CS") {
@@ -134,6 +172,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log(
-    "[Dev Toolbox] v0.3.1 — open via toolbar icon or Ctrl/⌘+Shift+D (set under chrome://extensions/shortcuts if unbound)"
+"[Dev Toolbox] v0.4 — free + Pro wave 1 — Ctrl/⌘+Shift+D (set under chrome://extensions/shortcuts if unbound)"
   );
 });

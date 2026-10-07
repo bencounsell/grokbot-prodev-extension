@@ -1,5 +1,5 @@
 /**
- * Dev Toolbox — side panel UI (v0.3 free-set: 11 tools)
+ * Dev Toolbox — side panel UI (v0.4 · free set + Pro wave 1)
  */
 
 function isMacPlatform() {
@@ -30,6 +30,7 @@ function applyShortcutLabels() {
   const TOOLS = [
     {
       id: "color",
+      tier: "free",
       name: "Color picker",
       desc: "EyeDropper · history · HEX/RGB/HSL",
       icon: "🎨",
@@ -37,6 +38,7 @@ function applyShortcutLabels() {
     },
     {
       id: "pagepalette",
+      tier: "free",
       name: "Palette",
       desc: "Extract page colors · copy HEX",
       icon: "🌈",
@@ -44,6 +46,7 @@ function applyShortcutLabels() {
     },
     {
       id: "fonts",
+      tier: "free",
       name: "List fonts",
       desc: "Fonts used on the page",
       icon: "🔤",
@@ -51,6 +54,7 @@ function applyShortcutLabels() {
     },
     {
       id: "livetext",
+      tier: "free",
       name: "Live text",
       desc: "Edit page text in-place",
       icon: "✏️",
@@ -58,6 +62,7 @@ function applyShortcutLabels() {
     },
     {
       id: "outliner",
+      tier: "free",
       name: "Outliner",
       desc: "Outline elements · headings · interactive",
       icon: "▦",
@@ -65,6 +70,7 @@ function applyShortcutLabels() {
     },
     {
       id: "images",
+      tier: "free",
       name: "Extract images",
       desc: "img · srcset · backgrounds",
       icon: "🖼️",
@@ -72,6 +78,7 @@ function applyShortcutLabels() {
     },
     {
       id: "json",
+      tier: "free",
       name: "JSON",
       desc: "Format · minify · validate",
       icon: "{ }",
@@ -79,6 +86,7 @@ function applyShortcutLabels() {
     },
     {
       id: "a11y",
+      tier: "free",
       name: "A11y check",
       desc: "Alt · labels · contrast heuristics",
       icon: "♿",
@@ -86,6 +94,7 @@ function applyShortcutLabels() {
     },
     {
       id: "ruler",
+      tier: "free",
       name: "Ruler / measure",
       desc: "Click-drag distance on page",
       icon: "📏",
@@ -93,6 +102,7 @@ function applyShortcutLabels() {
     },
     {
       id: "css",
+      tier: "free",
       name: "CSS inspect",
       desc: "Click element · computed styles",
       icon: "🧬",
@@ -100,6 +110,7 @@ function applyShortcutLabels() {
     },
     {
       id: "screenshot",
+      tier: "free",
       name: "Screenshot",
       desc: "Visible · selection crop · full page",
       icon: "📷",
@@ -107,15 +118,94 @@ function applyShortcutLabels() {
     },
     {
       id: "stack",
+      tier: "free",
       name: "Site stack",
       desc: "Detect frameworks & libraries",
       icon: "🧱",
       keywords: "stack tech technology framework library cms analytics",
     },
+    {
+      id: "layout",
+      tier: "pro",
+      name: "Layout overlays",
+      desc: "Box · flex · grid guides",
+      icon: "📐",
+      keywords: "layout overlays box model flex grid margin padding pro",
+    },
+    {
+      id: "fontchanger",
+      tier: "pro",
+      name: "Font changer",
+      desc: "Restyle typography live",
+      icon: "✒️",
+      keywords: "font changer typography family weight size pro",
+    },
+    {
+      id: "movedelete",
+      tier: "pro",
+      name: "Move / delete",
+      desc: "Drag or hide elements",
+      icon: "↔️",
+      keywords: "move delete hide drag rearrange elements pro",
+    },
+    {
+      id: "imagereplace",
+      tier: "pro",
+      name: "Image replace",
+      desc: "Swap img or backgrounds",
+      icon: "🪄",
+      keywords: "image replace swap src background mockup pro",
+    },
+    {
+      id: "darkmode",
+      tier: "pro",
+      name: "Dark mode",
+      desc: "Per-domain page invert",
+      icon: "🌙",
+      keywords: "dark mode night invert theme domain pro",
+    },
+    {
+      id: "pdfexport",
+      tier: "pro",
+      name: "PDF export",
+      desc: "Print to PDF · HTML dump",
+      icon: "📄",
+      keywords: "pdf export print save html snapshot pro",
+    },
+    {
+      id: "exportelement",
+      tier: "pro",
+      name: "Export element",
+      desc: "HTML + computed CSS",
+      icon: "📦",
+      keywords: "export element html css snippet download pro",
+    },
+    {
+      id: "responsive",
+      tier: "pro",
+      name: "Responsive viewer",
+      desc: "Device viewport presets",
+      icon: "📱",
+      keywords: "responsive viewer device iphone ipad viewport pro",
+    },
   ];
+
 
   const COLOR_HISTORY_KEY = "colorHistory";
   const COLOR_HISTORY_MAX = 14;
+
+  /** Licensing stub — Pro tools are shown gated in UI; unlock defaults true for wave-1 demo. */
+  const LICENSE_KEY = "dtProUnlocked";
+  async function isProUnlocked() {
+    try {
+      const { [LICENSE_KEY]: v } = await chrome.storage.local.get(LICENSE_KEY);
+      if (v === false) return false;
+      return true; // default unlocked (stub)
+    } catch {
+      return true;
+    }
+  }
+
   const IMPORTANT_STYLE_PROPS = [
     "display",
     "position",
@@ -299,7 +389,7 @@ function applyShortcutLabels() {
     els.viewTool.hidden = true;
     els.btnHome.hidden = true;
     els.headerTitle.textContent = "Dev Toolbox";
-    els.headerSub.textContent = "12 tools · free set";
+    els.headerSub.textContent = `${TOOLS.length} tools · free + Pro`;
     renderToolList();
     chrome.storage.local.set({ lastTool: null }).catch(() => {});
   }
@@ -324,25 +414,63 @@ function applyShortcutLabels() {
     closePalette();
   }
 
-  function renderToolList() {
-    els.toolList.innerHTML = "";
-    TOOLS.forEach((tool) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "tool-row" + (activeToolId === tool.id ? " active" : "");
-      btn.setAttribute("role", "listitem");
-      btn.innerHTML = `
+  function toolRowHtml(tool) {
+    const proBadge =
+      tool.tier === "pro"
+        ? '<span class="badge badge-pro tool-tier-badge">Pro</span>'
+        : "";
+    return `
         <span class="tool-icon" aria-hidden="true">${tool.icon}</span>
         <span class="tool-meta">
-          <span class="tool-name">${escapeHtml(tool.name)}</span>
+          <span class="tool-name">${escapeHtml(tool.name)}${proBadge}</span>
           <span class="tool-desc">${escapeHtml(tool.desc)}</span>
         </span>
         <svg class="tool-chevron" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
           <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`;
-      btn.addEventListener("click", () => openTool(tool.id));
-      els.toolList.appendChild(btn);
+  }
+
+  function appendSectionLabel(text) {
+    const p = document.createElement("p");
+    p.className = "section-label";
+    p.textContent = text;
+    els.toolList.appendChild(p);
+  }
+
+  function appendToolButton(tool) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "tool-row" +
+      (tool.tier === "pro" ? " tool-row-pro" : "") +
+      (activeToolId === tool.id ? " active" : "");
+    btn.setAttribute("role", "listitem");
+    btn.dataset.tier = tool.tier || "free";
+    btn.innerHTML = toolRowHtml(tool);
+    btn.addEventListener("click", () => openTool(tool.id));
+    els.toolList.appendChild(btn);
+  }
+
+  function renderToolList() {
+    els.toolList.innerHTML = "";
+    const free = TOOLS.filter((t) => t.tier !== "pro");
+    const pro = TOOLS.filter((t) => t.tier === "pro");
+    appendSectionLabel(`Free · ${free.length}`);
+    free.forEach(appendToolButton);
+    appendSectionLabel(`Pro · ${pro.length}`);
+    const note = document.createElement("p");
+    note.className = "pro-section-note";
+    note.innerHTML =
+      'Lifetime Pro tools · licensing stub (unlocked). <button type="button" class="linkish" id="pro-license-toggle">Toggle stub lock</button>';
+    els.toolList.appendChild(note);
+    note.querySelector("#pro-license-toggle")?.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const unlocked = await isProUnlocked();
+      await chrome.storage.local.set({ [LICENSE_KEY]: !unlocked });
+      toast(!unlocked ? "Pro stub unlocked" : "Pro stub locked (UI only)");
+      renderToolList();
     });
+    pro.forEach(appendToolButton);
   }
 
   // ——— Command palette ———
@@ -387,10 +515,14 @@ function applyShortcutLabels() {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "palette-item" + (i === paletteIndex ? " active" : "");
+      const proBadge =
+        tool.tier === "pro"
+          ? '<span class="badge badge-pro tool-tier-badge">Pro</span>'
+          : "";
       btn.innerHTML = `
         <span class="pi-icon" aria-hidden="true">${tool.icon}</span>
         <span class="tool-meta">
-          <span class="pi-name">${escapeHtml(tool.name)}</span>
+          <span class="pi-name">${escapeHtml(tool.name)}${proBadge}</span>
           <span class="pi-desc">${escapeHtml(tool.desc)}</span>
         </span>`;
       btn.addEventListener("click", () => openTool(tool.id));
@@ -1889,6 +2021,823 @@ function applyShortcutLabels() {
 
       btnScan.click();
     },
+
+    // ——— Pro wave 1 renderers ———
+    layout(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Box · flex · grid overlays</span></div>
+        <p class="panel-title">Layout overlays</p>
+        <div class="status" id="lay-status">Idle — choose a mode and start</div>
+        <div class="seg" id="lay-mode" style="margin-top:10px" role="tablist">
+          <button type="button" class="seg-btn active" data-mode="box">Box</button>
+          <button type="button" class="seg-btn" data-mode="flex">Flex</button>
+          <button type="button" class="seg-btn" data-mode="grid">Grid</button>
+          <button type="button" class="seg-btn" data-mode="all">All</button>
+        </div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="lay-start">Start overlay</button>
+          <button type="button" class="btn" id="lay-stop" disabled>Stop</button>
+        </div>
+        <div id="lay-info" class="css-meta" style="margin-top:12px" hidden>
+          <div class="title-line" id="lay-tag"></div>
+          <div class="url-line" id="lay-sel"></div>
+          <div class="box-chips" id="lay-chips"></div>
+        </div>
+        <p class="note" style="margin-top:12px">
+          <strong>Box</strong> shows margin (amber), content (violet), padding (green).
+          <strong>Flex/Grid</strong> annotate children and tracks. Click to lock a target.
+        </p>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#lay-status");
+      const btnStart = panel.querySelector("#lay-start");
+      const btnStop = panel.querySelector("#lay-stop");
+      const info = panel.querySelector("#lay-info");
+      let mode = "box";
+      let active = false;
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      function setActive(on) {
+        active = on;
+        btnStart.disabled = on;
+        btnStop.disabled = !on;
+      }
+      panel.querySelectorAll("#lay-mode .seg-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          panel.querySelectorAll("#lay-mode .seg-btn").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          mode = btn.dataset.mode;
+          if (active) btnStart.click();
+        });
+      });
+      const onMsg = (msg) => {
+        if (!msg) return;
+        if (msg.type === "DT_LAYOUT_INFO" && msg.payload) {
+          const p = msg.payload;
+          info.hidden = false;
+          panel.querySelector("#lay-tag").textContent = p.tag;
+          panel.querySelector("#lay-sel").textContent = p.selector;
+          panel.querySelector("#lay-chips").innerHTML = [
+            `${p.width}×${p.height}`,
+            p.display,
+            p.position,
+            `m ${p.margin}`,
+            `p ${p.padding}`,
+          ]
+            .map((t) => `<span class="chip">${escapeHtml(String(t))}</span>`)
+            .join("");
+          setStatus("ok", `Locked · ${p.display}`);
+        }
+        if (msg.type === "DT_LAYOUT_STOPPED") {
+          setActive(false);
+          setStatus("", "Stopped");
+        }
+      };
+      chrome.runtime.onMessage.addListener(onMsg);
+      btnStart.addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const res = await sendToTab({ type: "DT_LAYOUT_START", mode });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed to start");
+          return;
+        }
+        setActive(true);
+        setStatus("ok", `Overlay · ${mode} — hover the page`);
+        toast("Layout overlay on");
+      });
+      btnStop.addEventListener("click", async () => {
+        await sendToTab({ type: "DT_LAYOUT_STOP" });
+        setActive(false);
+        setStatus("", "Stopped");
+      });
+      return () => {
+        chrome.runtime.onMessage.removeListener(onMsg);
+        if (active) sendToTab({ type: "DT_LAYOUT_STOP" }).catch(() => {});
+      };
+    },
+
+    fontchanger(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Live typography edits</span></div>
+        <p class="panel-title">Font changer</p>
+        <div class="status" id="fc-status">Idle — pick an element on the page</div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="fc-pick">Pick element</button>
+          <button type="button" class="btn" id="fc-stop" disabled>Stop</button>
+          <button type="button" class="btn" id="fc-restore" disabled>Restore</button>
+        </div>
+        <div id="fc-controls" hidden style="margin-top:12px">
+          <div class="title-line" id="fc-tag" style="margin-bottom:8px"></div>
+          <div class="field">
+            <label for="fc-family">Font family</label>
+            <select class="input" id="fc-family"></select>
+          </div>
+          <div class="field-row" style="gap:8px">
+            <div class="field" style="flex:1;margin:0">
+              <label for="fc-size">Size</label>
+              <input class="input input-mono" id="fc-size" placeholder="16px" />
+            </div>
+            <div class="field" style="flex:1;margin:0">
+              <label for="fc-weight">Weight</label>
+              <select class="input" id="fc-weight">
+                <option value="300">300</option>
+                <option value="400" selected>400</option>
+                <option value="500">500</option>
+                <option value="600">600</option>
+                <option value="700">700</option>
+                <option value="800">800</option>
+              </select>
+            </div>
+          </div>
+          <div class="field-row" style="gap:8px;margin-top:8px">
+            <div class="field" style="flex:1;margin:0">
+              <label for="fc-lh">Line height</label>
+              <input class="input input-mono" id="fc-lh" placeholder="1.5" />
+            </div>
+            <div class="field" style="flex:1;margin:0">
+              <label for="fc-ls">Letter spacing</label>
+              <input class="input input-mono" id="fc-ls" placeholder="0" />
+            </div>
+          </div>
+          <div class="field" style="margin-top:8px">
+            <label for="fc-color">Color</label>
+            <input class="input input-mono" id="fc-color" placeholder="#111827" />
+          </div>
+          <button type="button" class="btn btn-primary btn-block" id="fc-apply" style="margin-top:10px">Apply</button>
+        </div>
+        <p class="note" style="margin-top:12px">Edits are inline styles on the live page. Restore returns the element to its pre-edit style.</p>`;
+      root.appendChild(panel);
+      const FONTS = [
+        "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        "Inter, system-ui, sans-serif",
+        "Georgia, 'Times New Roman', serif",
+        "'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace",
+        "'Helvetica Neue', Helvetica, Arial, sans-serif",
+        "Roboto, 'Helvetica Neue', Arial, sans-serif",
+        "'Comic Sans MS', 'Chalkboard SE', cursive",
+        "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
+      ];
+      const family = panel.querySelector("#fc-family");
+      FONTS.forEach((f) => {
+        const opt = document.createElement("option");
+        opt.value = f;
+        opt.textContent = f.split(",")[0].replace(/['"]/g, "");
+        opt.style.fontFamily = f;
+        family.appendChild(opt);
+      });
+      const status = panel.querySelector("#fc-status");
+      const controls = panel.querySelector("#fc-controls");
+      const btnPick = panel.querySelector("#fc-pick");
+      const btnStop = panel.querySelector("#fc-stop");
+      const btnRestore = panel.querySelector("#fc-restore");
+      let picking = false;
+      let hasTarget = false;
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      const onMsg = (msg) => {
+        if (!msg) return;
+        if (msg.type === "DT_FONT_TARGET" && msg.payload) {
+          const p = msg.payload;
+          hasTarget = true;
+          controls.hidden = false;
+          btnRestore.disabled = false;
+          panel.querySelector("#fc-tag").textContent = p.tag;
+          panel.querySelector("#fc-size").value = p.fontSize || "";
+          panel.querySelector("#fc-lh").value = p.lineHeight || "";
+          panel.querySelector("#fc-ls").value = p.letterSpacing || "";
+          panel.querySelector("#fc-color").value = p.color || "";
+          const w = String(p.fontWeight || "400");
+          const weightEl = panel.querySelector("#fc-weight");
+          if (![...weightEl.options].some((o) => o.value === w)) {
+            const o = document.createElement("option");
+            o.value = w;
+            o.textContent = w;
+            weightEl.appendChild(o);
+          }
+          weightEl.value = w;
+          setStatus("ok", `Selected · ${p.tag}`);
+          toast("Element selected");
+        }
+        if (msg.type === "DT_FONT_STOPPED") {
+          picking = false;
+          btnPick.disabled = false;
+          btnStop.disabled = true;
+          setStatus("", "Stopped");
+        }
+      };
+      chrome.runtime.onMessage.addListener(onMsg);
+      btnPick.addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const res = await sendToTab({ type: "DT_FONT_START" });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        picking = true;
+        btnPick.disabled = true;
+        btnStop.disabled = false;
+        setStatus("ok", "Click an element on the page");
+      });
+      btnStop.addEventListener("click", async () => {
+        await sendToTab({ type: "DT_FONT_STOP" });
+        picking = false;
+        btnPick.disabled = false;
+        btnStop.disabled = true;
+        setStatus("", "Stopped");
+      });
+      panel.querySelector("#fc-apply").addEventListener("click", async () => {
+        const res = await sendToTab({
+          type: "DT_FONT_APPLY",
+          fontFamily: family.value,
+          fontSize: panel.querySelector("#fc-size").value.trim() || undefined,
+          fontWeight: panel.querySelector("#fc-weight").value,
+          lineHeight: panel.querySelector("#fc-lh").value.trim() || undefined,
+          letterSpacing: panel.querySelector("#fc-ls").value.trim() || undefined,
+          color: panel.querySelector("#fc-color").value.trim() || undefined,
+        });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Apply failed");
+          return;
+        }
+        setStatus("ok", "Typography applied");
+        toast("Font updated");
+      });
+      btnRestore.addEventListener("click", async () => {
+        await sendToTab({ type: "DT_FONT_RESTORE" });
+        setStatus("", "Restored original styles");
+        toast("Restored");
+      });
+      return () => {
+        chrome.runtime.onMessage.removeListener(onMsg);
+        if (picking) sendToTab({ type: "DT_FONT_STOP" }).catch(() => {});
+      };
+    },
+
+    movedelete(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Rearrange or hide nodes</span></div>
+        <p class="panel-title">Move / delete</p>
+        <div class="status" id="md-status">Choose move or delete mode</div>
+        <div class="seg" id="md-mode" style="margin-top:10px" role="tablist">
+          <button type="button" class="seg-btn active" data-mode="move">Move</button>
+          <button type="button" class="seg-btn" data-mode="delete">Delete</button>
+        </div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="md-start">Start</button>
+          <button type="button" class="btn" id="md-stop" disabled>Stop</button>
+          <button type="button" class="btn" id="md-undo">Undo</button>
+        </div>
+        <p class="note" style="margin-top:12px" id="md-note">
+          <strong>Move:</strong> click then drag. <strong>Delete:</strong> click to hide (<code class="inline-code">display:none</code>). Undo restores the last session edits.
+        </p>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#md-status");
+      const btnStart = panel.querySelector("#md-start");
+      const btnStop = panel.querySelector("#md-stop");
+      let mode = "move";
+      let active = false;
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      function setActive(on) {
+        active = on;
+        btnStart.disabled = on;
+        btnStop.disabled = !on;
+      }
+      panel.querySelectorAll("#md-mode .seg-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          panel.querySelectorAll("#md-mode .seg-btn").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          mode = btn.dataset.mode;
+          if (active) btnStart.click();
+        });
+      });
+      const onMsg = (msg) => {
+        if (!msg) return;
+        if (msg.type === "DT_MOVE_DONE" && msg.payload) {
+          setStatus("ok", `Moved · ${msg.payload.tag}`);
+        }
+        if (msg.type === "DT_DELETE_DONE" && msg.payload) {
+          setStatus("ok", `Hidden ${msg.payload.count} · ${msg.payload.tag}`);
+        }
+        if (msg.type === "DT_MOVE_STOPPED" || msg.type === "DT_DELETE_STOPPED") {
+          setActive(false);
+          setStatus("", "Stopped");
+        }
+      };
+      chrome.runtime.onMessage.addListener(onMsg);
+      btnStart.addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const type = mode === "move" ? "DT_MOVE_START" : "DT_DELETE_START";
+        const res = await sendToTab({ type });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        setActive(true);
+        setStatus("ok", mode === "move" ? "Drag elements on the page" : "Click elements to hide");
+        toast(mode === "move" ? "Move mode on" : "Delete mode on");
+      });
+      btnStop.addEventListener("click", async () => {
+        await sendToTab({ type: mode === "move" ? "DT_MOVE_STOP" : "DT_DELETE_STOP" });
+        setActive(false);
+        setStatus("", "Stopped");
+      });
+      panel.querySelector("#md-undo").addEventListener("click", async () => {
+        const type = mode === "move" ? "DT_MOVE_UNDO" : "DT_DELETE_RESTORE";
+        const res = await sendToTab({ type });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Undo failed");
+          return;
+        }
+        setStatus("ok", "Restored");
+        toast("Undone");
+      });
+      return () => {
+        chrome.runtime.onMessage.removeListener(onMsg);
+        if (active) {
+          sendToTab({ type: mode === "move" ? "DT_MOVE_STOP" : "DT_DELETE_STOP" }).catch(() => {});
+        }
+      };
+    },
+
+    imagereplace(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Swap img or CSS backgrounds</span></div>
+        <p class="panel-title">Image replace</p>
+        <div class="status" id="ir-status">Idle — pick an image on the page</div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="ir-pick">Pick image</button>
+          <button type="button" class="btn" id="ir-stop" disabled>Stop</button>
+          <button type="button" class="btn" id="ir-restore" disabled>Restore</button>
+        </div>
+        <div id="ir-form" hidden style="margin-top:12px">
+          <div class="title-line" id="ir-tag"></div>
+          <div class="url-line" id="ir-meta" style="margin:6px 0 10px"></div>
+          <div class="field">
+            <label for="ir-url">Replacement URL</label>
+            <input class="input" id="ir-url" placeholder="https://… or data:" spellcheck="false" />
+          </div>
+          <div class="field">
+            <label for="ir-file">Or upload a local file</label>
+            <input class="input" id="ir-file" type="file" accept="image/*" />
+          </div>
+          <button type="button" class="btn btn-primary btn-block" id="ir-apply">Replace</button>
+        </div>
+        <p class="note" style="margin-top:12px">Works on <code class="inline-code">&lt;img&gt;</code> and elements with <code class="inline-code">background-image</code>.</p>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#ir-status");
+      const form = panel.querySelector("#ir-form");
+      const btnPick = panel.querySelector("#ir-pick");
+      const btnStop = panel.querySelector("#ir-stop");
+      const btnRestore = panel.querySelector("#ir-restore");
+      let picking = false;
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      const onMsg = (msg) => {
+        if (!msg) return;
+        if (msg.type === "DT_IMAGE_TARGET" && msg.payload) {
+          const p = msg.payload;
+          if (!p.ok) {
+            setStatus("warn", p.error || "Not an image");
+            return;
+          }
+          form.hidden = false;
+          btnRestore.disabled = false;
+          panel.querySelector("#ir-tag").textContent = p.tag;
+          panel.querySelector("#ir-meta").textContent = p.isImg
+            ? `${p.width || "?"}×${p.height || "?"} · ${p.src || ""}`
+            : `background · ${p.width || "?"}×${p.height || "?"}`;
+          if (p.src) panel.querySelector("#ir-url").value = p.src;
+          setStatus("ok", "Image selected — set a replacement");
+        }
+        if (msg.type === "DT_IMAGE_STOPPED") {
+          picking = false;
+          btnPick.disabled = false;
+          btnStop.disabled = true;
+          setStatus("", "Stopped");
+        }
+      };
+      chrome.runtime.onMessage.addListener(onMsg);
+      btnPick.addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const res = await sendToTab({ type: "DT_IMAGE_START" });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        picking = true;
+        btnPick.disabled = true;
+        btnStop.disabled = false;
+        setStatus("ok", "Click an image on the page");
+      });
+      btnStop.addEventListener("click", async () => {
+        await sendToTab({ type: "DT_IMAGE_STOP" });
+        picking = false;
+        btnPick.disabled = false;
+        btnStop.disabled = true;
+        setStatus("", "Stopped");
+      });
+      panel.querySelector("#ir-file").addEventListener("change", (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          panel.querySelector("#ir-url").value = reader.result;
+          toast("File loaded");
+        };
+        reader.readAsDataURL(file);
+      });
+      panel.querySelector("#ir-apply").addEventListener("click", async () => {
+        const url = panel.querySelector("#ir-url").value.trim();
+        if (!url) {
+          setStatus("warn", "Provide a URL or file");
+          return;
+        }
+        const res = await sendToTab({ type: "DT_IMAGE_REPLACE", url });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Replace failed");
+          return;
+        }
+        setStatus("ok", "Image replaced");
+        toast("Replaced");
+      });
+      btnRestore.addEventListener("click", async () => {
+        await sendToTab({ type: "DT_IMAGE_RESTORE" });
+        setStatus("", "Original image restored");
+        toast("Restored");
+      });
+      return () => {
+        chrome.runtime.onMessage.removeListener(onMsg);
+        if (picking) sendToTab({ type: "DT_IMAGE_STOP" }).catch(() => {});
+      };
+    },
+
+    darkmode(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Per-domain preference</span></div>
+        <p class="panel-title">Dark mode</p>
+        <div class="status" id="dm-status">Checking page…</div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="dm-toggle">Enable dark mode</button>
+          <button type="button" class="btn" id="dm-refresh">Refresh status</button>
+        </div>
+        <p class="note" style="margin-top:12px">
+          Inverts the page with media-aware exceptions for images/video. Preference is stored per host in
+          <code class="inline-code">chrome.storage.local</code> (stub licensing — always available in Pro section).
+        </p>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#dm-status");
+      const btn = panel.querySelector("#dm-toggle");
+      let on = false;
+      let host = "";
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      function syncBtn() {
+        btn.textContent = on ? "Disable dark mode" : "Enable dark mode";
+        btn.classList.toggle("btn-primary", !on);
+      }
+      async function refresh() {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const res = await sendToTab({ type: "DT_DARK_GET" });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        on = !!res.on;
+        host = res.host || "";
+        syncBtn();
+        setStatus(on ? "ok" : "", on ? `On · ${host}` : `Off · ${host}`);
+      }
+      btn.addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const next = !on;
+        const res = await sendToTab({ type: "DT_DARK_SET", on: next });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        on = !!res.on;
+        host = res.host || host;
+        syncBtn();
+        if (host) {
+          try {
+            const { darkModeHosts = {} } = await chrome.storage.local.get("darkModeHosts");
+            darkModeHosts[host] = on;
+            await chrome.storage.local.set({ darkModeHosts });
+          } catch (_) {}
+        }
+        setStatus(on ? "ok" : "", on ? `On · ${host}` : `Off · ${host}`);
+        toast(on ? "Dark mode on" : "Dark mode off");
+      });
+      panel.querySelector("#dm-refresh").addEventListener("click", refresh);
+      refresh();
+      return () => {};
+    },
+
+    pdfexport(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Print / HTML snapshot</span></div>
+        <p class="panel-title">PDF export</p>
+        <div class="status" id="pdf-status">Ready</div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="pdf-print">Save as PDF…</button>
+          <button type="button" class="btn" id="pdf-html">Download HTML</button>
+        </div>
+        <p class="note" style="margin-top:12px">
+          <strong>Save as PDF</strong> opens the system print dialog — choose “Save as PDF”.
+          <strong>Download HTML</strong> saves a snapshot of the live DOM (stylesheets linked, not inlined).
+        </p>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#pdf-status");
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      panel.querySelector("#pdf-print").addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        setStatus("", "Opening print dialog…");
+        const res = await sendToTab({ type: "DT_PDF_PRINT" });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        setStatus("ok", "Print dialog opened — choose Save as PDF");
+        toast("Print dialog");
+      });
+      panel.querySelector("#pdf-html").addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        setStatus("", "Exporting HTML…");
+        const res = await sendToTab({ type: "DT_PAGE_HTML" });
+        if (!res?.ok || !res.html) {
+          setStatus("err", res?.error || "Export failed");
+          return;
+        }
+        const blob = new Blob([res.html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const safe = (res.title || "page").replace(/[^\w\-]+/g, "_").slice(0, 60);
+        a.href = url;
+        a.download = `${safe}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setStatus("ok", `Downloaded ${safe}.html`);
+        toast("HTML downloaded");
+      });
+      return () => {};
+    },
+
+    exportelement(root) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>HTML + computed CSS</span></div>
+        <p class="panel-title">Export element</p>
+        <div class="status" id="ee-status">Idle — pick an element</div>
+        <div class="field-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-primary" id="ee-pick">Pick element</button>
+          <button type="button" class="btn" id="ee-stop" disabled>Stop</button>
+          <button type="button" class="btn" id="ee-copy" disabled>Copy snippet</button>
+          <button type="button" class="btn" id="ee-dl" disabled>Download</button>
+        </div>
+        <div id="ee-meta" class="css-meta" style="margin-top:12px" hidden>
+          <div class="title-line" id="ee-tag"></div>
+          <div class="url-line" id="ee-sel"></div>
+          <div class="box-chips" id="ee-chips"></div>
+        </div>
+        <textarea class="input input-mono" id="ee-out" style="margin-top:10px;min-height:160px;resize:vertical" readonly placeholder="Exported HTML/CSS will appear here"></textarea>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#ee-status");
+      const out = panel.querySelector("#ee-out");
+      const btnPick = panel.querySelector("#ee-pick");
+      const btnStop = panel.querySelector("#ee-stop");
+      const btnCopy = panel.querySelector("#ee-copy");
+      const btnDl = panel.querySelector("#ee-dl");
+      let picking = false;
+      let last = null;
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      const onMsg = (msg) => {
+        if (!msg) return;
+        if (msg.type === "DT_EXPORT_RESULT" && msg.payload) {
+          last = msg.payload;
+          out.value = last.snippet;
+          panel.querySelector("#ee-meta").hidden = false;
+          panel.querySelector("#ee-tag").textContent = last.tag;
+          panel.querySelector("#ee-sel").textContent = last.selector;
+          panel.querySelector("#ee-chips").innerHTML =
+            `<span class="chip">${last.box.width}×${last.box.height}</span>`;
+          btnCopy.disabled = false;
+          btnDl.disabled = false;
+          setStatus("ok", "Element exported");
+          toast("Exported");
+        }
+        if (msg.type === "DT_EXPORT_STOPPED") {
+          picking = false;
+          btnPick.disabled = false;
+          btnStop.disabled = true;
+          setStatus("", "Stopped");
+        }
+      };
+      chrome.runtime.onMessage.addListener(onMsg);
+      btnPick.addEventListener("click", async () => {
+        const tab = await getActiveTab();
+        if (!tab || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const res = await sendToTab({ type: "DT_EXPORT_START" });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Failed");
+          return;
+        }
+        picking = true;
+        btnPick.disabled = true;
+        btnStop.disabled = false;
+        setStatus("ok", "Click an element on the page");
+      });
+      btnStop.addEventListener("click", async () => {
+        await sendToTab({ type: "DT_EXPORT_STOP" });
+        picking = false;
+        btnPick.disabled = false;
+        btnStop.disabled = true;
+        setStatus("", "Stopped");
+      });
+      btnCopy.addEventListener("click", () => {
+        if (last?.snippet) copyText(last.snippet, "snippet");
+      });
+      btnDl.addEventListener("click", () => {
+        if (!last) return;
+        const blob = new Blob(
+          [`<!DOCTYPE html><html><head><meta charset="utf-8"><title>export</title><style>\n${last.selector} {\n${last.css}\n}\n</style></head><body>\n${last.html}\n</body></html>`],
+          { type: "text/html;charset=utf-8" }
+        );
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "element-export.html";
+        a.click();
+        URL.revokeObjectURL(url);
+        toast("Downloaded");
+      });
+      return () => {
+        chrome.runtime.onMessage.removeListener(onMsg);
+        if (picking) sendToTab({ type: "DT_EXPORT_STOP" }).catch(() => {});
+      };
+    },
+
+    responsive(root) {
+      const PRESETS = [
+        { id: "iphone-se", name: "iPhone SE", w: 375, h: 667 },
+        { id: "iphone-14", name: "iPhone 14", w: 390, h: 844 },
+        { id: "pixel-7", name: "Pixel 7", w: 412, h: 915 },
+        { id: "ipad", name: "iPad", w: 768, h: 1024 },
+        { id: "ipad-land", name: "iPad landscape", w: 1024, h: 768 },
+        { id: "laptop", name: "Laptop", w: 1366, h: 768 },
+        { id: "desktop", name: "Desktop", w: 1440, h: 900 },
+        { id: "hd", name: "Full HD", w: 1920, h: 1080 },
+      ];
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div class="pro-banner"><span class="badge badge-pro">Pro</span><span>Device viewport presets</span></div>
+        <p class="panel-title">Responsive viewer</p>
+        <div class="status" id="rv-status">Loading viewport…</div>
+        <div class="dim-grid" id="rv-now" style="margin-top:12px">
+          <div class="dim-card"><div class="label">Width</div><div class="value" id="rv-w">—<span class="unit">px</span></div></div>
+          <div class="dim-card"><div class="label">Height</div><div class="value" id="rv-h">—<span class="unit">px</span></div></div>
+          <div class="dim-card"><div class="label">DPR</div><div class="value" id="rv-dpr">—</div></div>
+          <div class="dim-card"><div class="label">Host</div><div class="value" id="rv-host" style="font-size:11px">—</div></div>
+        </div>
+        <p class="panel-title" style="margin-top:16px">Open preset window</p>
+        <div class="preset-grid" id="rv-presets"></div>
+        <div class="field-row" style="margin-top:12px;gap:8px">
+          <div class="field" style="flex:1;margin:0">
+            <label for="rv-cw">Custom W</label>
+            <input class="input input-mono" id="rv-cw" value="390" />
+          </div>
+          <div class="field" style="flex:1;margin:0">
+            <label for="rv-ch">Custom H</label>
+            <input class="input input-mono" id="rv-ch" value="844" />
+          </div>
+          <button type="button" class="btn btn-primary" id="rv-custom" style="align-self:flex-end">Open</button>
+        </div>
+        <p class="note" style="margin-top:12px">
+          Opens the current URL in a popup sized to the preset (Chrome window chrome adds a few pixels).
+        </p>`;
+      root.appendChild(panel);
+      const status = panel.querySelector("#rv-status");
+      const presetsEl = panel.querySelector("#rv-presets");
+      function setStatus(kind, text) {
+        status.className = "status" + (kind ? " " + kind : "");
+        status.textContent = text;
+      }
+      async function refresh() {
+        const res = await sendToTab({ type: "DT_VIEWPORT_INFO" });
+        if (!res?.ok) {
+          setStatus("warn", res?.error || "Open a normal page to read viewport");
+          return;
+        }
+        panel.querySelector("#rv-w").innerHTML = `${res.innerWidth}<span class="unit">px</span>`;
+        panel.querySelector("#rv-h").innerHTML = `${res.innerHeight}<span class="unit">px</span>`;
+        panel.querySelector("#rv-dpr").textContent = String(res.dpr);
+        panel.querySelector("#rv-host").textContent = res.host || "—";
+        setStatus("ok", `${res.innerWidth}×${res.innerHeight} @${res.dpr}x`);
+      }
+      async function openSize(w, h, name) {
+        const tab = await getActiveTab();
+        if (!tab?.url || isRestrictedUrl(tab.url)) {
+          setStatus("warn", "Open a normal https page first");
+          return;
+        }
+        const res = await chrome.runtime.sendMessage({
+          type: "DT_OPEN_VIEWPORT",
+          url: tab.url,
+          width: Number(w),
+          height: Number(h),
+        });
+        if (!res?.ok) {
+          setStatus("err", res?.error || "Could not open window");
+          return;
+        }
+        setStatus("ok", `Opened ${name || "custom"} · ${w}×${h}`);
+        toast(`${w}×${h}`);
+      }
+      PRESETS.forEach((p) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "preset-btn";
+        btn.innerHTML = `<span class="preset-name">${escapeHtml(p.name)}</span><span class="preset-size">${p.w}×${p.h}</span>`;
+        btn.addEventListener("click", () => openSize(p.w, p.h, p.name));
+        presetsEl.appendChild(btn);
+      });
+      panel.querySelector("#rv-custom").addEventListener("click", () => {
+        const w = parseInt(panel.querySelector("#rv-cw").value, 10);
+        const h = parseInt(panel.querySelector("#rv-ch").value, 10);
+        if (!w || !h || w < 200 || h < 200) {
+          setStatus("warn", "Enter width/height ≥ 200");
+          return;
+        }
+        openSize(w, h, "Custom");
+      });
+      refresh();
+      return () => {};
+    }
+
   };
 
   // ——— Events ———

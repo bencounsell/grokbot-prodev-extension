@@ -1,6 +1,6 @@
 /**
  * Dev Toolbox — content script (injected on demand)
- * Modes: measure, inspect, live text, outliner; extract colors/fonts/images/a11y/stack.
+ * Modes: free (measure/inspect/live/outliner/…) + Pro wave 1 (layout/font/move/image/dark/export/…).
  */
 (() => {
   "use strict";
@@ -23,6 +23,23 @@
     label: null,
     highlight: null,
     liveEdits: [], // { el, originalHTML, originalCE }
+    // Pro wave 1
+    layoutOverlay: false,
+    layoutMode: null,
+    layoutTarget: null,
+    layoutLocked: false,
+    fontChanger: false,
+    fontTarget: null,
+    moveMode: false,
+    moveEl: null,
+    moveDragging: false,
+    deleteMode: false,
+    deletedEls: [],
+    imageReplace: false,
+    imageTarget: null,
+    darkMode: false,
+    exportPick: false,
+    proHighlight: null,
   };
 
   const api = {
@@ -32,6 +49,7 @@
       stopInspect();
       stopLiveText(true);
       stopOutline();
+      if (typeof stopInteractiveProModes === "function") stopInteractiveProModes();
     },
   };
   window.__DEV_TOOLBOX_CS__ = api;
@@ -1320,6 +1338,947 @@
     };
   }
 
+  // ——— Pro wave 1 ———
+  const PRO_FONT_STACKS = [
+    "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    "Inter, system-ui, sans-serif",
+    "Georgia, 'Times New Roman', serif",
+    "'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace",
+    "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    "Roboto, 'Helvetica Neue', Arial, sans-serif",
+    "'Comic Sans MS', 'Chalkboard SE', cursive",
+    "Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif",
+  ];
+
+  function showPageHint(id, text) {
+    const root = ensureOverlayRoot();
+    root.style.pointerEvents = "none";
+    let hint = document.getElementById(id);
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.id = id;
+      Object.assign(hint.style, {
+        position: "fixed",
+        top: "12px",
+        left: "50%",
+        transform: "translateX(-50%)",
+        padding: "8px 14px",
+        borderRadius: "999px",
+        background: "rgba(22,26,34,0.95)",
+        border: "1px solid #2a3140",
+        color: "#9aa3b2",
+        fontSize: "12px",
+        pointerEvents: "none",
+        zIndex: "2147483647",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+        maxWidth: "90vw",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      });
+      root.appendChild(hint);
+    }
+    hint.textContent = text;
+    return hint;
+  }
+
+  function clearPageHint(id) {
+    const hint = document.getElementById(id);
+    if (hint) hint.remove();
+  }
+
+  function ensureHighlightBox() {
+    const root = ensureOverlayRoot();
+    let hl = STATE.proHighlight;
+    if (!hl) {
+      hl = document.createElement("div");
+      Object.assign(hl.style, {
+        position: "fixed",
+        pointerEvents: "none",
+        border: "2px solid #6e68e3",
+        background: "rgba(110,104,227,0.10)",
+        borderRadius: "2px",
+        zIndex: "2147483646",
+        display: "none",
+        boxSizing: "border-box",
+        boxShadow: "0 0 0 1px rgba(255,255,255,0.2)",
+      });
+      root.appendChild(hl);
+      STATE.proHighlight = hl;
+    }
+    return hl;
+  }
+
+  function placeHighlight(el) {
+    const hl = ensureHighlightBox();
+    if (!el) {
+      hl.style.display = "none";
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    hl.style.display = "block";
+    hl.style.left = r.left + "px";
+    hl.style.top = r.top + "px";
+    hl.style.width = Math.max(0, r.width) + "px";
+    hl.style.height = Math.max(0, r.height) + "px";
+  }
+
+  function cssPath(el) {
+    if (!el || el.nodeType !== 1) return "";
+    if (el.id) return "#" + CSS.escape(el.id);
+    const parts = [];
+    let cur = el;
+    while (cur && cur.nodeType === 1 && cur !== document.body && parts.length < 5) {
+      let part = cur.tagName.toLowerCase();
+      if (cur.classList?.length) {
+        part +=
+          "." +
+          [...cur.classList]
+            .slice(0, 2)
+            .map((c) => CSS.escape(c))
+            .join(".");
+      }
+      const parent = cur.parentElement;
+      if (parent) {
+        const siblings = [...parent.children].filter((c) => c.tagName === cur.tagName);
+        if (siblings.length > 1) {
+          part += `:nth-of-type(${siblings.indexOf(cur) + 1})`;
+        }
+      }
+      parts.unshift(part);
+      cur = parent;
+    }
+    return parts.join(" > ");
+  }
+
+  // ——— Layout overlays ———
+  function stopLayoutOverlay() {
+    STATE.layoutOverlay = false;
+    document.removeEventListener("mousemove", onLayoutMove, true);
+    document.removeEventListener("click", onLayoutClick, true);
+    document.removeEventListener("keydown", onLayoutKey, true);
+    const box = document.getElementById(NS + "-layout-box");
+    if (box) box.remove();
+    clearPageHint(NS + "-layout-hint");
+    STATE.layoutTarget = null;
+    if (!hasActiveProMode() && !STATE.measure && !STATE.inspect && !STATE.liveText && !STATE.outline) {
+      removeRoot();
+    }
+  }
+
+  function hasActiveProMode() {
+    return !!(
+      STATE.layoutOverlay ||
+      STATE.fontChanger ||
+      STATE.moveMode ||
+      STATE.deleteMode ||
+      STATE.imageReplace ||
+      STATE.exportPick
+    );
+  }
+
+  function startLayoutOverlay(mode) {
+    stopInteractiveProModes();
+    stopMeasure();
+    stopInspect();
+    STATE.layoutOverlay = true;
+    STATE.layoutMode = mode || "box";
+    ensureOverlayRoot();
+    showPageHint(
+      NS + "-layout-hint",
+      `Layout: ${STATE.layoutMode} · hover · click to lock · Esc to stop`
+    );
+    document.addEventListener("mousemove", onLayoutMove, true);
+    document.addEventListener("click", onLayoutClick, true);
+    document.addEventListener("keydown", onLayoutKey, true);
+  }
+
+  function onLayoutMove(e) {
+    if (!STATE.layoutOverlay || STATE.layoutLocked) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    STATE.layoutTarget = el;
+    renderLayoutOverlay(el);
+  }
+
+  function onLayoutClick(e) {
+    if (!STATE.layoutOverlay) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    STATE.layoutTarget = el;
+    STATE.layoutLocked = !STATE.layoutLocked;
+    renderLayoutOverlay(el);
+    showPageHint(
+      NS + "-layout-hint",
+      STATE.layoutLocked
+        ? `Locked · ${describeElement(el)} · click again to unlock · Esc`
+        : `Layout: ${STATE.layoutMode} · hover · click to lock · Esc`
+    );
+    chrome.runtime
+      .sendMessage({
+        type: "DT_LAYOUT_INFO",
+        payload: buildLayoutInfo(el),
+      })
+      .catch(() => {});
+  }
+
+  function onLayoutKey(e) {
+    if (e.key === "Escape" && STATE.layoutOverlay) {
+      e.preventDefault();
+      stopLayoutOverlay();
+      chrome.runtime.sendMessage({ type: "DT_LAYOUT_STOPPED" }).catch(() => {});
+    }
+  }
+
+  function buildLayoutInfo(el) {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return {
+      selector: cssPath(el),
+      tag: describeElement(el),
+      display: cs.display,
+      position: cs.position,
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+      margin: cs.margin,
+      padding: cs.padding,
+      flexDirection: cs.flexDirection,
+      justifyContent: cs.justifyContent,
+      alignItems: cs.alignItems,
+      gap: cs.gap,
+      gridTemplateColumns: cs.gridTemplateColumns,
+      gridTemplateRows: cs.gridTemplateRows,
+    };
+  }
+
+  function renderLayoutOverlay(el) {
+    const root = ensureOverlayRoot();
+    let box = document.getElementById(NS + "-layout-box");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = NS + "-layout-box";
+      box.setAttribute("data-dt", "1");
+      Object.assign(box.style, {
+        position: "fixed",
+        pointerEvents: "none",
+        zIndex: "2147483645",
+      });
+      root.appendChild(box);
+    }
+    box.innerHTML = "";
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    const mt = parseFloat(cs.marginTop) || 0;
+    const mr = parseFloat(cs.marginRight) || 0;
+    const mb = parseFloat(cs.marginBottom) || 0;
+    const ml = parseFloat(cs.marginLeft) || 0;
+    const pt = parseFloat(cs.paddingTop) || 0;
+    const pr = parseFloat(cs.paddingRight) || 0;
+    const pb = parseFloat(cs.paddingBottom) || 0;
+    const pl = parseFloat(cs.paddingLeft) || 0;
+
+    function layer(left, top, w, h, bg, border) {
+      const d = document.createElement("div");
+      Object.assign(d.style, {
+        position: "fixed",
+        left: left + "px",
+        top: top + "px",
+        width: Math.max(0, w) + "px",
+        height: Math.max(0, h) + "px",
+        background: bg,
+        border: border || "none",
+        boxSizing: "border-box",
+        pointerEvents: "none",
+      });
+      box.appendChild(d);
+      return d;
+    }
+
+    if (STATE.layoutMode === "box" || STATE.layoutMode === "all") {
+      layer(r.left - ml, r.top - mt, r.width + ml + mr, r.height + mt + mb, "rgba(232,184,74,0.22)");
+      layer(r.left, r.top, r.width, r.height, "rgba(110,104,227,0.12)", "1px solid #6e68e3");
+      layer(r.left + pl, r.top + pt, r.width - pl - pr, r.height - pt - pb, "rgba(62,207,142,0.18)");
+      const label = document.createElement("div");
+      Object.assign(label.style, {
+        position: "fixed",
+        left: Math.max(4, r.left) + "px",
+        top: Math.max(4, r.top - 22) + "px",
+        padding: "2px 6px",
+        borderRadius: "4px",
+        background: "#6e68e3",
+        color: "#fff",
+        fontSize: "10px",
+        fontWeight: "600",
+        fontFamily: '"SF Mono", ui-monospace, Menlo, monospace',
+        whiteSpace: "nowrap",
+      });
+      label.textContent = `${Math.round(r.width)}×${Math.round(r.height)} · ${cs.display}`;
+      box.appendChild(label);
+    }
+
+    if (
+      (STATE.layoutMode === "flex" || STATE.layoutMode === "all") &&
+      (cs.display.includes("flex") || cs.display === "inline-flex")
+    ) {
+      const kids = [...el.children].filter((c) => c.nodeType === 1);
+      kids.forEach((kid, i) => {
+        const kr = kid.getBoundingClientRect();
+        const d = layer(kr.left, kr.top, kr.width, kr.height, "rgba(110,104,227,0.08)", "1px dashed #817cf0");
+        const n = document.createElement("div");
+        Object.assign(n.style, {
+          position: "absolute",
+          top: "2px",
+          left: "2px",
+          fontSize: "9px",
+          background: "#6e68e3",
+          color: "#fff",
+          padding: "0 4px",
+          borderRadius: "3px",
+        });
+        n.textContent = String(i + 1);
+        d.style.position = "fixed";
+        box.appendChild(n);
+        n.style.position = "fixed";
+        n.style.left = kr.left + 2 + "px";
+        n.style.top = kr.top + 2 + "px";
+      });
+      const meta = document.createElement("div");
+      Object.assign(meta.style, {
+        position: "fixed",
+        left: Math.max(4, r.left) + "px",
+        top: Math.min(window.innerHeight - 28, r.bottom + 4) + "px",
+        padding: "3px 8px",
+        borderRadius: "4px",
+        background: "rgba(22,26,34,0.95)",
+        border: "1px solid #2a3140",
+        color: "#e8eaed",
+        fontSize: "10px",
+        fontFamily: '"SF Mono", ui-monospace, Menlo, monospace',
+      });
+      meta.textContent = `flex ${cs.flexDirection} · ${cs.justifyContent}/${cs.alignItems} · gap ${cs.gap}`;
+      box.appendChild(meta);
+    }
+
+    if (
+      (STATE.layoutMode === "grid" || STATE.layoutMode === "all") &&
+      (cs.display.includes("grid") || cs.display === "inline-grid")
+    ) {
+      layer(r.left, r.top, r.width, r.height, "transparent", "2px solid #3ecf8e");
+      const meta = document.createElement("div");
+      Object.assign(meta.style, {
+        position: "fixed",
+        left: Math.max(4, r.left) + "px",
+        top: Math.min(window.innerHeight - 28, r.bottom + 4) + "px",
+        padding: "3px 8px",
+        borderRadius: "4px",
+        background: "rgba(22,26,34,0.95)",
+        border: "1px solid #2a3140",
+        color: "#e8eaed",
+        fontSize: "10px",
+        fontFamily: '"SF Mono", ui-monospace, Menlo, monospace',
+        maxWidth: "70vw",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      });
+      meta.textContent = `grid cols: ${cs.gridTemplateColumns}`;
+      box.appendChild(meta);
+    }
+  }
+
+  function stopInteractiveProModes() {
+    STATE.layoutLocked = false;
+    stopLayoutOverlay();
+    stopFontChanger();
+    stopMoveMode();
+    stopDeleteMode();
+    stopImageReplace();
+    stopExportPick();
+  }
+
+  // ——— Font changer ———
+  function startFontChanger() {
+    stopInteractiveProModes();
+    stopMeasure();
+    stopInspect();
+    STATE.fontChanger = true;
+    ensureOverlayRoot();
+    showPageHint(NS + "-font-hint", "Click an element to restyle its font · Esc to stop");
+    document.addEventListener("mousemove", onFontMove, true);
+    document.addEventListener("click", onFontClick, true);
+    document.addEventListener("keydown", onFontKey, true);
+  }
+
+  function onFontMove(e) {
+    if (!STATE.fontChanger) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    placeHighlight(el);
+  }
+
+  function onFontClick(e) {
+    if (!STATE.fontChanger) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    STATE.fontTarget = el;
+    placeHighlight(el);
+    const cs = getComputedStyle(el);
+    chrome.runtime
+      .sendMessage({
+        type: "DT_FONT_TARGET",
+        payload: {
+          selector: cssPath(el),
+          tag: describeElement(el),
+          fontFamily: cs.fontFamily,
+          fontSize: cs.fontSize,
+          fontWeight: cs.fontWeight,
+          lineHeight: cs.lineHeight,
+          letterSpacing: cs.letterSpacing,
+          color: cs.color,
+        },
+      })
+      .catch(() => {});
+  }
+
+  function onFontKey(e) {
+    if (e.key === "Escape" && STATE.fontChanger) {
+      e.preventDefault();
+      stopFontChanger();
+      chrome.runtime.sendMessage({ type: "DT_FONT_STOPPED" }).catch(() => {});
+    }
+  }
+
+  function applyFontChange(opts) {
+    const el = STATE.fontTarget;
+    if (!el) return { ok: false, error: "No element selected" };
+    if (!el.__dtFontOrig) {
+      el.__dtFontOrig = {
+        fontFamily: el.style.fontFamily,
+        fontSize: el.style.fontSize,
+        fontWeight: el.style.fontWeight,
+        lineHeight: el.style.lineHeight,
+        letterSpacing: el.style.letterSpacing,
+        color: el.style.color,
+      };
+    }
+    if (opts.fontFamily != null) el.style.fontFamily = opts.fontFamily;
+    if (opts.fontSize != null) el.style.fontSize = opts.fontSize;
+    if (opts.fontWeight != null) el.style.fontWeight = opts.fontWeight;
+    if (opts.lineHeight != null) el.style.lineHeight = opts.lineHeight;
+    if (opts.letterSpacing != null) el.style.letterSpacing = opts.letterSpacing;
+    if (opts.color != null) el.style.color = opts.color;
+    placeHighlight(el);
+    return { ok: true };
+  }
+
+  function restoreFontTarget() {
+    const el = STATE.fontTarget;
+    if (el?.__dtFontOrig) {
+      const o = el.__dtFontOrig;
+      el.style.fontFamily = o.fontFamily;
+      el.style.fontSize = o.fontSize;
+      el.style.fontWeight = o.fontWeight;
+      el.style.lineHeight = o.lineHeight;
+      el.style.letterSpacing = o.letterSpacing;
+      el.style.color = o.color;
+      delete el.__dtFontOrig;
+    }
+  }
+
+  function stopFontChanger() {
+    STATE.fontChanger = false;
+    document.removeEventListener("mousemove", onFontMove, true);
+    document.removeEventListener("click", onFontClick, true);
+    document.removeEventListener("keydown", onFontKey, true);
+    clearPageHint(NS + "-font-hint");
+    if (STATE.proHighlight) STATE.proHighlight.style.display = "none";
+    if (!hasActiveProMode() && !STATE.measure && !STATE.inspect && !STATE.liveText && !STATE.outline) {
+      removeRoot();
+    }
+  }
+
+  // ——— Move / delete ———
+  function startMoveMode() {
+    stopInteractiveProModes();
+    stopMeasure();
+    stopInspect();
+    STATE.moveMode = true;
+    STATE.moveEl = null;
+    ensureOverlayRoot();
+    showPageHint(NS + "-move-hint", "Click element, then drag to move · Esc to stop");
+    document.addEventListener("mousemove", onMoveHover, true);
+    document.addEventListener("mousedown", onMoveDown, true);
+    document.addEventListener("keydown", onMoveKey, true);
+  }
+
+  function onMoveHover(e) {
+    if (!STATE.moveMode || STATE.moveDragging) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    placeHighlight(el);
+  }
+
+  function onMoveDown(e) {
+    if (!STATE.moveMode || e.button !== 0) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    STATE.moveEl = el;
+    if (!el.__dtMoveOrig) {
+      const cs = getComputedStyle(el);
+      el.__dtMoveOrig = {
+        position: el.style.position,
+        left: el.style.left,
+        top: el.style.top,
+        right: el.style.right,
+        bottom: el.style.bottom,
+        transform: el.style.transform,
+        zIndex: el.style.zIndex,
+        width: el.style.width,
+        computedPosition: cs.position,
+      };
+    }
+    const r = el.getBoundingClientRect();
+    if (getComputedStyle(el).position === "static") {
+      el.style.position = "relative";
+    }
+    el.style.zIndex = "2147483000";
+    STATE.moveDragging = true;
+    STATE.moveOffset = { x: e.clientX - r.left, y: e.clientY - r.top };
+    STATE.moveStartLeft = parseFloat(el.style.left) || 0;
+    STATE.moveStartTop = parseFloat(el.style.top) || 0;
+    STATE.movePointer = { x: e.clientX, y: e.clientY };
+    window.addEventListener("mousemove", onMoveDrag, true);
+    window.addEventListener("mouseup", onMoveUp, true);
+    placeHighlight(el);
+  }
+
+  function onMoveDrag(e) {
+    if (!STATE.moveDragging || !STATE.moveEl) return;
+    const el = STATE.moveEl;
+    const dx = e.clientX - STATE.movePointer.x;
+    const dy = e.clientY - STATE.movePointer.y;
+    el.style.left = STATE.moveStartLeft + dx + "px";
+    el.style.top = STATE.moveStartTop + dy + "px";
+    placeHighlight(el);
+  }
+
+  function onMoveUp() {
+    STATE.moveDragging = false;
+    window.removeEventListener("mousemove", onMoveDrag, true);
+    window.removeEventListener("mouseup", onMoveUp, true);
+    if (STATE.moveEl) {
+      chrome.runtime
+        .sendMessage({
+          type: "DT_MOVE_DONE",
+          payload: { selector: cssPath(STATE.moveEl), tag: describeElement(STATE.moveEl) },
+        })
+        .catch(() => {});
+    }
+  }
+
+  function onMoveKey(e) {
+    if (e.key === "Escape" && STATE.moveMode) {
+      e.preventDefault();
+      stopMoveMode();
+      chrome.runtime.sendMessage({ type: "DT_MOVE_STOPPED" }).catch(() => {});
+    }
+  }
+
+  function undoMove() {
+    const el = STATE.moveEl;
+    if (el?.__dtMoveOrig) {
+      const o = el.__dtMoveOrig;
+      el.style.position = o.position;
+      el.style.left = o.left;
+      el.style.top = o.top;
+      el.style.right = o.right;
+      el.style.bottom = o.bottom;
+      el.style.transform = o.transform;
+      el.style.zIndex = o.zIndex;
+      el.style.width = o.width;
+      delete el.__dtMoveOrig;
+    }
+    return { ok: true };
+  }
+
+  function stopMoveMode() {
+    STATE.moveMode = false;
+    STATE.moveDragging = false;
+    document.removeEventListener("mousemove", onMoveHover, true);
+    document.removeEventListener("mousedown", onMoveDown, true);
+    document.removeEventListener("keydown", onMoveKey, true);
+    window.removeEventListener("mousemove", onMoveDrag, true);
+    window.removeEventListener("mouseup", onMoveUp, true);
+    clearPageHint(NS + "-move-hint");
+    if (STATE.proHighlight) STATE.proHighlight.style.display = "none";
+  }
+
+  function startDeleteMode() {
+    stopInteractiveProModes();
+    stopMeasure();
+    stopInspect();
+    STATE.deleteMode = true;
+    if (!STATE.deletedEls) STATE.deletedEls = [];
+    ensureOverlayRoot();
+    showPageHint(NS + "-del-hint", "Click to hide element · Esc to stop");
+    document.addEventListener("mousemove", onDelMove, true);
+    document.addEventListener("click", onDelClick, true);
+    document.addEventListener("keydown", onDelKey, true);
+  }
+
+  function onDelMove(e) {
+    if (!STATE.deleteMode) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    placeHighlight(el);
+  }
+
+  function onDelClick(e) {
+    if (!STATE.deleteMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el) || el === document.body || el === document.documentElement) return;
+    STATE.deletedEls.push({ el, display: el.style.display });
+    el.style.display = "none";
+    chrome.runtime
+      .sendMessage({
+        type: "DT_DELETE_DONE",
+        payload: { selector: cssPath(el), tag: describeElement(el), count: STATE.deletedEls.length },
+      })
+      .catch(() => {});
+  }
+
+  function onDelKey(e) {
+    if (e.key === "Escape" && STATE.deleteMode) {
+      e.preventDefault();
+      stopDeleteMode();
+      chrome.runtime.sendMessage({ type: "DT_DELETE_STOPPED" }).catch(() => {});
+    }
+  }
+
+  function restoreDeleted() {
+    const list = STATE.deletedEls || [];
+    for (const item of list) {
+      try {
+        item.el.style.display = item.display;
+      } catch (_) {}
+    }
+    STATE.deletedEls = [];
+    return { ok: true };
+  }
+
+  function stopDeleteMode() {
+    STATE.deleteMode = false;
+    document.removeEventListener("mousemove", onDelMove, true);
+    document.removeEventListener("click", onDelClick, true);
+    document.removeEventListener("keydown", onDelKey, true);
+    clearPageHint(NS + "-del-hint");
+    if (STATE.proHighlight) STATE.proHighlight.style.display = "none";
+  }
+
+  // ——— Image replace ———
+  function startImageReplace() {
+    stopInteractiveProModes();
+    stopMeasure();
+    stopInspect();
+    STATE.imageReplace = true;
+    ensureOverlayRoot();
+    showPageHint(NS + "-img-hint", "Click an image (or element with background-image) · Esc");
+    document.addEventListener("mousemove", onImgMove, true);
+    document.addEventListener("click", onImgClick, true);
+    document.addEventListener("keydown", onImgKey, true);
+  }
+
+  function findImageTarget(el) {
+    let cur = el;
+    while (cur && cur !== document.body) {
+      if (cur.tagName === "IMG" || cur.tagName === "PICTURE" || cur.tagName === "SVG" || cur.tagName === "VIDEO") {
+        return cur.tagName === "PICTURE" ? cur.querySelector("img") || cur : cur;
+      }
+      const bg = getComputedStyle(cur).backgroundImage;
+      if (bg && bg !== "none" && /url\(/i.test(bg)) return cur;
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  function onImgMove(e) {
+    if (!STATE.imageReplace) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    const target = findImageTarget(el) || el;
+    placeHighlight(target);
+  }
+
+  function onImgClick(e) {
+    if (!STATE.imageReplace) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    const target = findImageTarget(el);
+    if (!target) {
+      chrome.runtime
+        .sendMessage({ type: "DT_IMAGE_TARGET", payload: { ok: false, error: "Not an image target" } })
+        .catch(() => {});
+      return;
+    }
+    STATE.imageTarget = target;
+    placeHighlight(target);
+    const payload = {
+      ok: true,
+      tag: describeElement(target),
+      selector: cssPath(target),
+      isImg: target.tagName === "IMG",
+      src: target.tagName === "IMG" ? target.currentSrc || target.src : null,
+      bg: target.tagName !== "IMG" ? getComputedStyle(target).backgroundImage : null,
+      width: target.naturalWidth || Math.round(target.getBoundingClientRect().width),
+      height: target.naturalHeight || Math.round(target.getBoundingClientRect().height),
+    };
+    chrome.runtime.sendMessage({ type: "DT_IMAGE_TARGET", payload }).catch(() => {});
+  }
+
+  function onImgKey(e) {
+    if (e.key === "Escape" && STATE.imageReplace) {
+      e.preventDefault();
+      stopImageReplace();
+      chrome.runtime.sendMessage({ type: "DT_IMAGE_STOPPED" }).catch(() => {});
+    }
+  }
+
+  function replaceImage(url) {
+    const el = STATE.imageTarget;
+    if (!el) return { ok: false, error: "No image selected" };
+    if (!url) return { ok: false, error: "No URL" };
+    if (!el.__dtImgOrig) {
+      if (el.tagName === "IMG") {
+        el.__dtImgOrig = { src: el.getAttribute("src"), srcset: el.getAttribute("srcset") };
+      } else {
+        el.__dtImgOrig = { backgroundImage: el.style.backgroundImage };
+      }
+    }
+    if (el.tagName === "IMG") {
+      el.removeAttribute("srcset");
+      el.src = url;
+    } else {
+      el.style.backgroundImage = `url("${url.replace(/"/g, '\\"')}")`;
+      el.style.backgroundSize = el.style.backgroundSize || "cover";
+      el.style.backgroundPosition = el.style.backgroundPosition || "center";
+    }
+    placeHighlight(el);
+    return { ok: true };
+  }
+
+  function restoreImage() {
+    const el = STATE.imageTarget;
+    if (el?.__dtImgOrig) {
+      if (el.tagName === "IMG") {
+        if (el.__dtImgOrig.src != null) el.setAttribute("src", el.__dtImgOrig.src);
+        if (el.__dtImgOrig.srcset != null) el.setAttribute("srcset", el.__dtImgOrig.srcset);
+        else el.removeAttribute("srcset");
+      } else {
+        el.style.backgroundImage = el.__dtImgOrig.backgroundImage;
+      }
+      delete el.__dtImgOrig;
+    }
+    return { ok: true };
+  }
+
+  function stopImageReplace() {
+    STATE.imageReplace = false;
+    document.removeEventListener("mousemove", onImgMove, true);
+    document.removeEventListener("click", onImgClick, true);
+    document.removeEventListener("keydown", onImgKey, true);
+    clearPageHint(NS + "-img-hint");
+    if (STATE.proHighlight) STATE.proHighlight.style.display = "none";
+  }
+
+  // ——— Dark mode ———
+  function getDarkModeStyle() {
+    return `
+html[data-dt-dark="1"] {
+  color-scheme: dark !important;
+}
+html[data-dt-dark="1"] img,
+html[data-dt-dark="1"] video,
+html[data-dt-dark="1"] picture,
+html[data-dt-dark="1"] canvas,
+html[data-dt-dark="1"] svg,
+html[data-dt-dark="1"] iframe {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
+html[data-dt-dark="1"] {
+  filter: invert(1) hue-rotate(180deg) !important;
+  background: #111 !important;
+}
+`;
+  }
+
+  function setDarkMode(on) {
+    let style = document.getElementById(NS + "-dark-style");
+    if (on) {
+      if (!style) {
+        style = document.createElement("style");
+        style.id = NS + "-dark-style";
+        style.setAttribute("data-dt", "1");
+        style.textContent = getDarkModeStyle();
+        document.documentElement.appendChild(style);
+      }
+      document.documentElement.setAttribute("data-dt-dark", "1");
+      STATE.darkMode = true;
+    } else {
+      document.documentElement.removeAttribute("data-dt-dark");
+      if (style) style.remove();
+      STATE.darkMode = false;
+    }
+    return { ok: true, on: !!STATE.darkMode, host: location.host };
+  }
+
+  function getDarkModeState() {
+    return {
+      ok: true,
+      on: document.documentElement.getAttribute("data-dt-dark") === "1",
+      host: location.host,
+    };
+  }
+
+  // ——— PDF / print ———
+  function preparePrint() {
+    window.print();
+    return { ok: true };
+  }
+
+  function exportPageHtml() {
+    const html = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+    return {
+      ok: true,
+      html,
+      title: document.title || "page",
+      url: location.href,
+    };
+  }
+
+  // ——— Export element ———
+  function startExportPick() {
+    stopInteractiveProModes();
+    stopMeasure();
+    stopInspect();
+    STATE.exportPick = true;
+    ensureOverlayRoot();
+    showPageHint(NS + "-export-hint", "Click an element to export HTML + CSS · Esc");
+    document.addEventListener("mousemove", onExportMove, true);
+    document.addEventListener("click", onExportClick, true);
+    document.addEventListener("keydown", onExportKey, true);
+  }
+
+  function onExportMove(e) {
+    if (!STATE.exportPick) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    placeHighlight(el);
+  }
+
+  function collectRelevantCss(el) {
+    const props = [
+      "display", "position", "top", "right", "bottom", "left", "width", "height",
+      "min-width", "min-height", "max-width", "max-height", "margin", "padding",
+      "border", "border-radius", "background", "background-color", "background-image",
+      "color", "font-family", "font-size", "font-weight", "line-height", "letter-spacing",
+      "text-align", "text-decoration", "text-transform", "white-space", "overflow",
+      "flex", "flex-direction", "flex-wrap", "align-items", "justify-content", "gap",
+      "grid-template-columns", "grid-template-rows", "box-shadow", "opacity", "transform",
+      "z-index", "object-fit", "cursor",
+    ];
+    const cs = getComputedStyle(el);
+    const lines = [];
+    for (const p of props) {
+      const v = cs.getPropertyValue(p);
+      if (!v || v === "none" || v === "normal" || v === "auto" || v === "static" || v === "visible" || v === "rgba(0, 0, 0, 0)") continue;
+      if (p === "width" || p === "height") {
+        lines.push(`  ${p}: ${Math.round(parseFloat(v))}px;`);
+      } else {
+        lines.push(`  ${p}: ${v};`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  function buildExportPayload(el) {
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll("[data-dt], #" + NS + "-root").forEach((n) => n.remove());
+    const html = el.outerHTML;
+    const css = collectRelevantCss(el);
+    const selector = cssPath(el);
+    const snippet = `/* ${selector} */\n${selector} {\n${css}\n}\n\n<!-- HTML -->\n${html}`;
+    return {
+      selector,
+      tag: describeElement(el),
+      html,
+      css,
+      snippet,
+      box: {
+        width: Math.round(el.getBoundingClientRect().width),
+        height: Math.round(el.getBoundingClientRect().height),
+      },
+    };
+  }
+
+  function onExportClick(e) {
+    if (!STATE.exportPick) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || isDtNode(el)) return;
+    placeHighlight(el);
+    const payload = buildExportPayload(el);
+    chrome.runtime.sendMessage({ type: "DT_EXPORT_RESULT", payload }).catch(() => {});
+  }
+
+  function onExportKey(e) {
+    if (e.key === "Escape" && STATE.exportPick) {
+      e.preventDefault();
+      stopExportPick();
+      chrome.runtime.sendMessage({ type: "DT_EXPORT_STOPPED" }).catch(() => {});
+    }
+  }
+
+  function stopExportPick() {
+    STATE.exportPick = false;
+    document.removeEventListener("mousemove", onExportMove, true);
+    document.removeEventListener("click", onExportClick, true);
+    document.removeEventListener("keydown", onExportKey, true);
+    clearPageHint(NS + "-export-hint");
+    if (STATE.proHighlight) STATE.proHighlight.style.display = "none";
+  }
+
+  // ——— Responsive metrics ———
+  function getViewportInfo() {
+    return {
+      ok: true,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      outerWidth: window.outerWidth,
+      outerHeight: window.outerHeight,
+      dpr: window.devicePixelRatio || 1,
+      host: location.host,
+      url: location.href,
+      title: document.title,
+    };
+  }
+
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (!msg || !msg.type) return;
 
@@ -1330,6 +2289,13 @@
         inspect: STATE.inspect,
         liveText: STATE.liveText,
         outline: STATE.outline,
+        layoutOverlay: STATE.layoutOverlay,
+        fontChanger: STATE.fontChanger,
+        moveMode: STATE.moveMode,
+        deleteMode: STATE.deleteMode,
+        imageReplace: STATE.imageReplace,
+        darkMode: STATE.darkMode,
+        exportPick: STATE.exportPick,
       });
       return true;
     }
@@ -1423,6 +2389,117 @@
       sendResponse({ ok: true, scrollY: window.scrollY, scrollX: window.scrollX });
       return true;
     }
+
+    if (msg.type === "DT_LAYOUT_START") {
+      startLayoutOverlay(msg.mode || "box");
+      sendResponse({ ok: true, mode: STATE.layoutMode });
+      return true;
+    }
+    if (msg.type === "DT_LAYOUT_STOP") {
+      stopLayoutOverlay();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_FONT_START") {
+      startFontChanger();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_FONT_STOP") {
+      stopFontChanger();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_FONT_APPLY") {
+      sendResponse(applyFontChange(msg));
+      return true;
+    }
+    if (msg.type === "DT_FONT_RESTORE") {
+      restoreFontTarget();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_MOVE_START") {
+      startMoveMode();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_MOVE_STOP") {
+      stopMoveMode();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_MOVE_UNDO") {
+      sendResponse(undoMove());
+      return true;
+    }
+    if (msg.type === "DT_DELETE_START") {
+      startDeleteMode();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_DELETE_STOP") {
+      stopDeleteMode();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_DELETE_RESTORE") {
+      sendResponse(restoreDeleted());
+      return true;
+    }
+    if (msg.type === "DT_IMAGE_START") {
+      startImageReplace();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_IMAGE_STOP") {
+      stopImageReplace();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_IMAGE_REPLACE") {
+      sendResponse(replaceImage(msg.url));
+      return true;
+    }
+    if (msg.type === "DT_IMAGE_RESTORE") {
+      sendResponse(restoreImage());
+      return true;
+    }
+    if (msg.type === "DT_DARK_SET") {
+      sendResponse(setDarkMode(!!msg.on));
+      return true;
+    }
+    if (msg.type === "DT_DARK_GET") {
+      sendResponse(getDarkModeState());
+      return true;
+    }
+    if (msg.type === "DT_PDF_PRINT") {
+      sendResponse(preparePrint());
+      return true;
+    }
+    if (msg.type === "DT_PAGE_HTML") {
+      try {
+        sendResponse(exportPageHtml());
+      } catch (err) {
+        sendResponse({ ok: false, error: err?.message || String(err) });
+      }
+      return true;
+    }
+    if (msg.type === "DT_EXPORT_START") {
+      startExportPick();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_EXPORT_STOP") {
+      stopExportPick();
+      sendResponse({ ok: true });
+      return true;
+    }
+    if (msg.type === "DT_VIEWPORT_INFO") {
+      sendResponse(getViewportInfo());
+      return true;
+    }
+
     if (msg.type === "DT_STOP_ALL") {
       api.stopAll();
       sendResponse({ ok: true });
