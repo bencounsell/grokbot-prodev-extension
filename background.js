@@ -7,17 +7,28 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((err) => console.warn("[Dev Toolbox] setPanelBehavior:", err));
 
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "open-palette") return;
-
+async function openSidePanelForActiveWindow() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.windowId != null) {
       await chrome.sidePanel.open({ windowId: tab.windowId });
+      return tab;
     }
   } catch (err) {
     console.warn("[Dev Toolbox] sidePanel.open:", err);
   }
+  return null;
+}
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === "open-side-panel") {
+    await openSidePanelForActiveWindow();
+    return;
+  }
+
+  if (command !== "open-palette") return;
+
+  await openSidePanelForActiveWindow();
 
   setTimeout(() => {
     chrome.runtime.sendMessage({ type: "OPEN_PALETTE" }).catch(() => {});
@@ -123,6 +134,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log(
-    "[Dev Toolbox] v0.3 — open via toolbar icon or Ctrl/⌘+Shift+D"
+    "[Dev Toolbox] v0.3.1 — open via toolbar icon or Ctrl/⌘+Shift+D (set under chrome://extensions/shortcuts if unbound)"
   );
 });

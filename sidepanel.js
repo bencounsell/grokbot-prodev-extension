@@ -2,6 +2,28 @@
  * Dev Toolbox — side panel UI (v0.3 free-set: 11 tools)
  */
 
+function isMacPlatform() {
+  const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+  const ua = navigator.userAgent || "";
+  return /Mac|iPhone|iPad|iPod/i.test(p) || /Mac OS X/i.test(ua);
+}
+
+function applyShortcutLabels() {
+  const mac = isMacPlatform();
+  const palette = mac ? "⌘K" : "Ctrl+K";
+  const open = mac ? "⌘⇧D" : "Ctrl+Shift+D";
+  const elPalette = document.getElementById("kbd-palette");
+  const elHintPalette = document.getElementById("kbd-hint-palette");
+  const elHintOpen = document.getElementById("kbd-hint-open");
+  const btn = document.getElementById("btn-palette");
+  if (elPalette) elPalette.textContent = palette;
+  if (elHintPalette) elHintPalette.textContent = palette;
+  if (elHintOpen) elHintOpen.textContent = open;
+  if (btn) btn.title = `Command palette (${palette})`;
+}
+
+
+
 (() => {
   "use strict";
 
@@ -1953,3 +1975,5 @@
   renderToolList();
   restoreLastTool().then(checkPendingPalette);
 })();
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyShortcutLabels); else applyShortcutLabels();

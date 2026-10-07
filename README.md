@@ -1,4 +1,4 @@
-# Dev Toolbox (v0.3)
+# Dev Toolbox (v0.3.1)
 
 Chrome Manifest V3 side-panel extension — SuperDev-style developer toolbox for Ben Counsell.
 
@@ -41,6 +41,12 @@ Prefer **Remove + Load unpacked**, then **refresh the tab** you want to measure/
 | **CSS inspect** | Hover highlight, click for computed styles |
 | **Screenshot** | Visible · selection crop · full-page stitch (capped) |
 | **Site stack** | Framework/library/CMS signals from DOM & globals |
+
+## Shortcuts
+
+Suggested keys: **Ctrl+Shift+D** (open panel) and **Ctrl+Shift+K** (palette). On Mac: **⌘⇧D** / **⌘⇧K**.
+
+If a shortcut does nothing after Load unpacked, open `chrome://extensions/shortcuts` and assign **Open Dev Toolbox side panel** / **Open Dev Toolbox command palette**.
 
 ## Permissions
 

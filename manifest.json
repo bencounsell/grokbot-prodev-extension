@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dev Toolbox",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "All-in-one SuperDev-style developer toolbox \u2014 12 free-set tools.",
   "icons": {
     "16": "icons/icon16.png",
@@ -34,7 +34,7 @@
     "<all_urls>"
   ],
   "commands": {
-    "_execute_action": {
+    "open-side-panel": {
       "suggested_key": {
         "default": "Ctrl+Shift+D",
         "mac": "Command+Shift+D"
